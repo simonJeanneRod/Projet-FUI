@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>hands detection avec MediaPipe</title>
+    <style>
+html, body { margin: 0; height: 100%; overflow: hidden; background: #fff; }
+canvas { display: block; }
+    </style>
+  </head>
+  <body>
+
+
+<script>
+// Étape 1 · Fullscreen Canvas Setup
+// Creer un canvas fullscreen
+
+// Création et insertion du canvas dans le document
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+document.body.appendChild(canvas);
+
+// Application des styles pour occuper tout l'écran sans marges
+document.body.style.margin = '0';
+document.body.style.overflow = 'hidden';
+canvas.style.position = 'fixed';
+canvas.style.top = '0';
+canvas.style.left = '0';
+canvas.style.display = 'block';
+
+// Fonction pour redimensionner le canvas à la taille de la fenêtre
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+// Redimensionnement initial et écoute des changements de taille
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// Fonction de dessin principal
+function draw() {
+  ctx.fillStyle = '#cccccc';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// Boucle d'animation
+function loop() {
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+<script>
+// Étape 2 · Camera Stream Capture
+// Activer la camera, et récupérer le flux sans le montrer à l'écran.
+
+// Création d'un élément vidéo invisible pour recevoir le flux de la caméra
+const video = document.createElement('video');
+video.autoplay = true;
+video.playsInline = true;
+
+// Demande d'accès à la webcam et association du flux à la vidéo
+navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+  .then((stream) => {
+    video.srcObject = stream;
+  })
+  .catch((err) => {
+    console.error('Erreur lors de l\'accès à la caméra :', err);
+  });
+</script>
+
+<script>
+// Étape 3 · Load MediaPipe Hands
+// Charger la librarie MediaPipe  pour la detection des mains .
+
+// Chargement du script MediaPipe Hands via une balise script dynamique
+const mpScript = document.createElement('script');
+mpScript.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+mpScript.crossOrigin = 'anonymous';
+document.head.appendChild(mpScript);
+
+// Variable globale pour stocker l'instance de détection des mains
+let handsDetector = null;
+
+// Initialisation de MediaPipe une fois le script chargé
+mpScript.onload = () => {
+  handsDetector = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  handsDetector.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+
+  console.log('Bibliothèque MediaPipe Hands chargée avec succès.');
+};
+</script>
+
+<script>
+// Étape 4 · Mirrored Hand Skeleton
+// Détecter les main et afficher le skeleton en mode mirroir
+
+// Connexions standard des articulations de la main dans MediaPipe
+const handConnections = [
+  [0, 1], [1, 2], [2, 3], [3, 4],       // Pouce
+  [0, 5], [5, 6], [6, 7], [7, 8],       // Index
+  [5, 9], [9, 10], [10, 11], [11, 12],  // Majeur
+  [9, 13], [13, 14], [14, 15], [15, 16],// Annulaire
+  [13, 17], [17, 18], [18, 19], [19, 20],// Auriculaire
+  [0, 17]                               // Paume
+];
+
+// Variable globale pour stocker les derniers résultats de détection
+let detectedHands = [];
+
+// Fonction pour configurer l'écouteur de résultats sur le détecteur
+function setupHandsResults() {
+  if (handsDetector) {
+    handsDetector.onResults((results) => {
+      detectedHands = results.multiHandLandmarks || [];
+    });
+  }
+}
+
+// Vérification de la disponibilité du détecteur pour attacher le rappel
+if (handsDetector) {
+  setupHandsResults();
+} else {
+  const originalOnload = mpScript.onload;
+  mpScript.onload = () => {
+    if (originalOnload) originalOnload();
+    setupHandsResults();
+  };
+}
+
+// Indicateur pour éviter d'envoyer une nouvelle image avant la fin du traitement
+let isProcessingFrame = false;
+
+// Dessin du squelette d'une main en inversant horizontalement la coordonnée X pour l'effet miroir
+function drawHandSkeleton(landmarks) {
+  // Dessin des segments osseux
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3;
+  for (const [startIdx, endIdx] of handConnections) {
+    const p1 = landmarks[startIdx];
+    const p2 = landmarks[endIdx];
+    ctx.beginPath();
+    ctx.moveTo((1 - p1.x) * canvas.width, p1.y * canvas.height);
+    ctx.lineTo((1 - p2.x) * canvas.width, p2.y * canvas.height);
+    ctx.stroke();
+  }
+
+  // Dessin des articulations (points)
+  ctx.fillStyle = '#ff0055';
+  for (const point of landmarks) {
+    ctx.beginPath();
+    ctx.arc((1 - point.x) * canvas.width, point.y * canvas.height, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// Redéfinition de la fonction de dessin pour inclure l'analyse et le squelette en miroir
+function draw() {
+  // Fond gris neutre
+  ctx.fillStyle = '#222222';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Envoi de la trame vidéo au modèle de détection si disponible
+  if (handsDetector && video.readyState >= 2 && !isProcessingFrame) {
+    isProcessingFrame = true;
+    handsDetector.send({ image: video }).then(() => {
+      isProcessingFrame = false;
+    }).catch(() => {
+      isProcessingFrame = false;
+    });
+  }
+
+  // Affichage du squelette pour chaque main détectée
+  for (const landmarks of detectedHands) {
+    drawHandSkeleton(landmarks);
+  }
+}
+</script>
+
+<script>
+// Étape 5
+// afficher les ID des jointure
+
+// Ajout de l'affichage des ID des jointures sur le squelette de la main
+
+// Redéfinition de la fonction drawHandSkeleton pour inclure l'affichage des ID
+function drawHandSkeleton(landmarks) {
+  // Dessin des segments osseux
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3;
+  for (const [startIdx, endIdx] of handConnections) {
+    const p1 = landmarks[startIdx];
+    const p2 = landmarks[endIdx];
+    ctx.beginPath();
+    ctx.moveTo((1 - p1.x) * canvas.width, p1.y * canvas.height);
+    ctx.lineTo((1 - p2.x) * canvas.width, p2.y * canvas.height);
+    ctx.stroke();
+  }
+
+  // Dessin des articulations (points) avec leur ID
+  ctx.fillStyle = '#ff0055';
+  for (const [idx, point] of landmarks.entries()) {
+    ctx.beginPath();
+    ctx.arc((1 - point.x) * canvas.width, point.y * canvas.height, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Affichage de l'ID de la jointure
+    ctx.fillStyle = '#00ff00';
+    ctx.font = '12px Arial';
+    ctx.fillText(idx, (1 - point.x) * canvas.width + 5, point.y * canvas.height);
+  }
+}
+</script>
+
+<script>
+// Étape 6
+// ajoute une grille de 3x3
+
+// Ajout d'une grille de 3x3 sur le canvas
+
+// Redéfinition de la fonction draw pour inclure la grille
+function draw() {
+  // Fond gris neutre
+  ctx.fillStyle = '#222222';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Dessin de la grille
+  drawGrid();
+
+  // Envoi de la trame vidéo au modèle de détection si disponible
+  if (handsDetector && video.readyState >= 2 && !isProcessingFrame) {
+    isProcessingFrame = true;
+    handsDetector.send({ image: video }).then(() => {
+      isProcessingFrame = false;
+    }).catch(() => {
+      isProcessingFrame = false;
+    });
+  }
+
+  // Affichage du squelette pour chaque main détectée
+  for (const landmarks of detectedHands) {
+    drawHandSkeleton(landmarks);
+  }
+}
+
+// Fonction pour dessiner la grille de 3x3
+function drawGrid() {
+  const gridSize = 3;
+  const cellWidth = canvas.width / gridSize;
+  const cellHeight = canvas.height / gridSize;
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1;
+
+  // Lignes horizontales
+  for (let i = 1; i < gridSize; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, i * cellHeight);
+    ctx.lineTo(canvas.width, i * cellHeight);
+    ctx.stroke();
+  }
+
+  // Lignes verticales
+  for (let i = 1; i < gridSize; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * cellWidth, 0);
+    ctx.lineTo(i * cellWidth, canvas.height);
+    ctx.stroke();
+  }
+}
+</script>
+
+<script>
+// Étape 7
+// di l'id 8 du sequeleton su trouve dans un des cases de la gille la, un rectangle de la taille de la case, est affiché en rose avec un opacité de 50 pourcent et pas de contour sur cette dernière. sinon, lorsque l'identifint 8 n'est plus dans la case, rien est affiché sur la case avec un effet miroir
+
+// Variable globale pour stocker la position de l'articulation 8
+let thumbTipPosition = null;
+
+// Redéfinition de la fonction drawHandSkeleton pour mettre à jour la position de l'articulation 8
+function drawHandSkeleton(landmarks) {
+  // Dessin des segments osseux
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3;
+  for (const [startIdx, endIdx] of handConnections) {
+    const p1 = landmarks[startIdx];
+    const p2 = landmarks[endIdx];
+    ctx.beginPath();
+    ctx.moveTo((1 - p1.x) * canvas.width, p1.y * canvas.height);
+    ctx.lineTo((1 - p2.x) * canvas.width, p2.y * canvas.height);
+    ctx.stroke();
+  }
+
+  // Dessin des articulations (points) avec leur ID
+  ctx.fillStyle = '#ff0055';
+  for (const [idx, point] of landmarks.entries()) {
+    ctx.beginPath();
+    ctx.arc((1 - point.x) * canvas.width, point.y * canvas.height, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Affichage de l'ID de la jointure
+    ctx.fillStyle = '#00ff00';
+    ctx.font = '12px Arial';
+    ctx.fillText(idx, (1 - point.x) * canvas.width + 5, point.y * canvas.height);
+
+    // Mise à jour de la position de l'articulation 8
+    if (idx === 8) {
+      thumbTipPosition = {
+        x: point.x,
+        y: point.y
+      };
+    }
+  }
+}
+
+// Redéfinition de la fonction draw pour inclure le rectangle rose si nécessaire
+function draw() {
+  // Fond gris neutre
+  ctx.fillStyle = '#222222';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Dessin de la grille
+  drawGrid();
+
+  // Envoi de la trame vidéo au modèle de détection si disponible
+  if (handsDetector && video.readyState >= 2 && !isProcessingFrame) {
+    isProcessingFrame = true;
+    handsDetector.send({ image: video }).then(() => {
+      isProcessingFrame = false;
+    }).catch(() => {
+      isProcessingFrame = false;
+    });
+  }
+
+  // Affichage du squelette pour chaque main détectée
+  for (const landmarks of detectedHands) {
+    drawHandSkeleton(landmarks);
+  }
+
+  // Dessin du rectangle rose si l'articulation 8 est dans une case
+  if (thumbTipPosition) {
+    const gridSize = 3;
+    const cellWidth = canvas.width / gridSize;
+    const cellHeight = canvas.height / gridSize;
+
+    // Calcul de la case contenant l'articulation 8
+    const cellX = Math.floor((1 - thumbTipPosition.x) * gridSize);
+    const cellY = Math.floor(thumbTipPosition.y * gridSize);
+
+    // Dessin du rectangle rose
+    ctx.fillStyle = 'rgba(255, 105, 180, 0.5)'; // Rose avec opacité 50%
+    ctx.fillRect(cellX * cellWidth, cellY * cellHeight, cellWidth, cellHeight);
+  }
+}
+</script>
+
+<script>
+// Étape 8
+// atribue un son pour chaque case : drums, snare, hat, pas, clap, bass, synth, synth 2, synth 3, Synth 4. 
+// si aucune case n'est touché : rien ne se joue
+
+// Ajout de l'audio pour chaque case
+
+// Création des éléments audio pour chaque son
+const sounds = [
+  new Audio('drums.mp3'),    // Batterie
+  new Audio('snare.mp3'),    // Cymbale claquée
+  new Audio('hat.mp3'),      // Cymbale haute
+  new Audio('pas.mp3'),      // Pas
+  new Audio('clap.mp3'),     // Claquement de mains
+  new Audio('bass.mp3'),     // Basse
+  new Audio('synth.mp3'),    // Synthèseur 1
+  new Audio('synth2.mp3'),   // Synthèseur 2
+  new Audio('synth3.mp3'),   // Synthèseur 3
+  new Audio('synth4.mp3')    // Synthèseur 4
+];
+
+// Variable globale pour stocker la dernière case jouée
+let lastPlayedCell = null;
+
+// Redéfinition de la fonction draw pour inclure le son si nécessaire
+function draw() {
+  // Fond gris neutre
+  ctx.fillStyle = '#222222';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Dessin de la grille
+  drawGrid();
+
+  // Envoi de la trame vidéo au modèle de détection si disponible
+  if (handsDetector && video.readyState >= 2 && !isProcessingFrame) {
+    isProcessingFrame = true;
+    handsDetector.send({ image: video }).then(() => {
+      isProcessingFrame = false;
+    }).catch(() => {
+      isProcessingFrame = false;
+    });
+  }
+
+  // Affichage du squelette pour chaque main détectée
+  for (const landmarks of detectedHands) {
+    drawHandSkeleton(landmarks);
+  }
+
+  // Dessin du rectangle rose si l'articulation 8 est dans une case
+  if (thumbTipPosition) {
+    const gridSize = 3;
+    const cellWidth = canvas.width / gridSize;
+    const cellHeight = canvas.height / gridSize;
+
+    // Calcul de la case contenant l'articulation 8
+    const cellX = Math.floor((1 - thumbTipPosition.x) * gridSize);
+    const cellY = Math.floor(thumbTipPosition.y * gridSize);
+
+    // Dessin du rectangle rose
+    ctx.fillStyle = 'rgba(255, 105, 180, 0.5)'; // Rose avec opacité 50%
+    ctx.fillRect(cellX * cellWidth, cellY * cellHeight, cellWidth, cellHeight);
+
+    // Jouer le son correspondant à la case si elle a changé
+    const currentCell = cellY * gridSize + cellX;
+    if (currentCell !== lastPlayedCell) {
+      sounds[currentCell].play();
+      lastPlayedCell = currentCell;
+    }
+  } else {
+    // Réinitialiser la dernière case jouée si l'articulation 8 n'est pas détectée
+    lastPlayedCell = null;
+  }
+}
+</script>
+
+  </body>
+</html>

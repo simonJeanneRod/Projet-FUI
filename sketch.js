@@ -1,3 +1,4 @@
+
 import System from "./System.js"
 
 window.onload = () => {
@@ -25,6 +26,6 @@ window.onload = () => {
 
 };
 
-var imagejavascript = document.createElement("img");
-imagejavascript.src = "./_DSC0187-2.jpg";
-document.body.appendChild(imagejavascript)
+// var imagejavascript = document.createElement("img");
+// imagejavascript.src = "./_DSC0187-2.jpg";
+// document.body.appendChild(imagejavascript)

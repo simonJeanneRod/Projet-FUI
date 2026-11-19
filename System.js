@@ -1,41 +1,53 @@
-import Particule from "./particule.js";
-
+import Requete from "./requete.js"
 export default class System {
     constructor(ctx, canvas) {
-        this.ctx = ctx
-        this.canvas = canvas
-        this.particules = []
+        this.ctx = ctx;
+        this.canvas = canvas;
 
-        for (let i = 0; i < 1; i++) {
-            const p = new Particule(this.ctx)
-            // p.x = Math.random() * this.canvas.width
-            // p.y = Math.random() * this.canvas.height
+        this.imagejavascript = document.createElement("img");
+        this.imagejavascript.src = "./_DSC0187-2.jpg";
 
-            p.x = Math.random() * this.canvas.width
-            p.y = Math.random() * this.canvas.height
-            this.particules.push(p)
+        this.compteur = 0;
+        this.position_screen = { x: 0, y: 0 };
+
+        this.inizializeimage();
+        document.addEventListener("click", (e) => {
+            this.compteur = this.compteur + 10;
+        });
+
+        this.draw();
+    }
+
+
+    drawimage() {
+        if (this.imagejavascript.complete) {
+            const imgRatio = this.imagejavascript.width / this.imagejavascript.height;
+            const canvasRatio = this.canvas.width / this.canvas.height;
+
+            let newWidth, newHeight;
+            if (imgRatio > canvasRatio) {
+  
+                newHeight = this.canvas.height + this.compteur * 2;
+                newWidth = Math.round(newHeight * imgRatio);
+            } else {
+
+                newWidth = this.canvas.width + this.compteur * 2;
+                newHeight = Math.round(newWidth / imgRatio);
+            }
+
+            const x = (this.canvas.width - newWidth) / 2;
+            const y = (this.canvas.height - newHeight) / 2;
+
+            this.ctx.drawImage(this.imagejavascript, x, y, newWidth, newHeight);
         }
-
-        document.addEventListener("mousemove", (e) => {
-            const p = new Particule(this.ctx)
-            p.x = e.clientX
-            p.y = e.clientY
-            this.particules.push(p)
-        })
-
-        this.draw()
     }
 
     draw() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
-
-        for (let i = 0; i < this.particules.length; i++) {
-            const p = this.particules[i]
-            p.update()
-        }
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.drawimage();
 
         requestAnimationFrame(() => {
-            this.draw()
-        })
+            this.draw();
+        });
     }
 }

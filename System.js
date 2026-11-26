@@ -1,53 +1,66 @@
-import Requete from "./requete.js"
 export default class System {
     constructor(ctx, canvas) {
         this.ctx = ctx;
         this.canvas = canvas;
 
-        this.imagejavascript = document.createElement("img");
-        this.imagejavascript.src = "./_DSC0187-2.jpg";
+        this.image = document.createElement("img");
+        this.image.src = "./_DSC0187-2.jpg";
 
-        this.compteur = 0;
-        this.position_screen = { x: 0, y: 0 };
+        this.zoom = 1;
+        this.x = 0; 
+        this.y = 0;
 
-        this.inizializeimage();
-        document.addEventListener("click", (e) => {
-            this.compteur = this.compteur + 10;
-        });
+        this.delay = 200
+        this.step = 10
+
 
         this.draw();
     }
 
+    updateZoomAndPosition(x, y, zoom) {
+        const xstart = this.x;
+        const xend = x;
+        const ystart = this.y;
+        const yend = y;
+        const start = this.zoom;
+        const end =  zoom;
 
-    drawimage() {
-        if (this.imagejavascript.complete) {
-            const imgRatio = this.imagejavascript.width / this.imagejavascript.height;
-            const canvasRatio = this.canvas.width / this.canvas.height;
+        for (let i = 1; i < this.step+1; i++) {
+            setTimeout(() => {
+                this.zoom = start + (end - start) * (i / this.step),
+                this.x = xstart + (xend - xstart) * (i / this.step),
+                this.y = ystart + (yend - ystart) * (i / this.step)
+                console.log(this.zoom)
+                console.log(this.zoom*100)
 
-            let newWidth, newHeight;
-            if (imgRatio > canvasRatio) {
-  
-                newHeight = this.canvas.height + this.compteur * 2;
-                newWidth = Math.round(newHeight * imgRatio);
-            } else {
-
-                newWidth = this.canvas.width + this.compteur * 2;
-                newHeight = Math.round(newWidth / imgRatio);
-            }
-
-            const x = (this.canvas.width - newWidth) / 2;
-            const y = (this.canvas.height - newHeight) / 2;
-
-            this.ctx.drawImage(this.imagejavascript, x, y, newWidth, newHeight);
+            }, i * this.delay);
         }
+   
     }
 
+    drawPhoto() {
+
+
+
+            const scale = Math.max(
+                this.canvas.width / this.image.naturalWidth,
+                this.canvas.height / this.image.naturalHeight
+            );
+
+            const width = this.image.naturalWidth * scale * this.zoom;
+            const height = this.image.naturalHeight * scale * this.zoom;
+
+
+            const left = (this.canvas.width - width) / 2 - this.x * this.zoom;
+            const top = (this.canvas.height - height) / 2 - this.y * this.zoom;
+
+            this.ctx.drawImage(this.image, left, top, width, height);
+    }
+    
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.drawimage();
+        this.drawPhoto();
 
-        requestAnimationFrame(() => {
-            this.draw();
-        });
+        requestAnimationFrame(() => this.draw());
     }
 }

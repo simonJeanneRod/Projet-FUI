@@ -1,99 +1,86 @@
-export default class Requete {
-    constructor(ctx, canvas) {
-        this.ctx = ctx;
-        this.canvas = canvas;
 
-        // Initialisation de la boîte modale
+export default class Requete {
+    constructor(system) {
+ 
+        this.system = system;
+
         this.initializeModal();
     }
 
     initializeModal() {
-        // On crée l'élément de la boîte modale
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.style.display = 'none'; // Masquer initiallement
-        modal.style.position = 'fixed';
-        modal.style.top = '0';
-        modal.style.left = '0';
-        modal.style.width = '100%';
-        modal.style.height = '100%';
-        modal.style.backgroundColor = 'rgb(255, 0, 0)';
-        modal.style.justifyContent = 'center';
-        modal.style.alignItems = 'center';
 
-        // On crée le contenu de la boîte modale
-        const modalContent = document.createElement('div');
-        modalContent.className = 'modal-content';
-        modalContent.style.backgroundColor = 'white';
-        modalContent.style.padding = '20px';
-        modalContent.style.borderRadius = '5px';
+        this.modal = document.createElement("div");
+        this.modal.style.display = "none";
+        this.modal.style.position = "fixed";
+        this.modal.style.top = "0";
+        this.modal.style.left = "0";
+        this.modal.style.width = "100%";
+        this.modal.style.height = "100%";
+        this.modal.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+        this.modal.style.justifyContent = "center"; 
+        document.body.appendChild(this.modal);
 
-        // On crée le formulaire pour inscrire une couleur
-        const form = document.createElement('form');
+        this.form = document.createElement("form");
+        this.form.style.backgroundColor = "white";
+        this.form.style.padding = "20px";
+        this.form.style.borderRadius = "5px";
+        this.form.style.fontFamily = "Arial";
+        this.modal.appendChild(this.form);
 
-        // On crée l'étiquette pour le champ de texte
-        const label = document.createElement('label');
-        label.textContent = 'Inscrivez une couleur :';
-        form.appendChild(label);
 
-        // On crée le champ de texte pour inscrire la couleur
-        const input = document.createElement('input');
-        input.type = 'text';
-        form.appendChild(input);
+        this.inputX = this.createField("Coordonnée X :");
+        this.inputY = this.createField("Coordonnée Y :");
+        this.inputZoom = this.createField("Zoom (%) :");
+        this.inputZoom.min = "1";
 
-        // On crée le bouton de soumission du formulaire
-        const submitButton = document.createElement('button');
-        submitButton.textContent = 'Soumettre';
-        form.appendChild(submitButton);
+        const button = document.createElement("button");
+        button.textContent = "Appliquer";
+        this.form.appendChild(button);
 
-        // Ajout du formulaire au contenu modal
-        modalContent.appendChild(form);
 
-        // Ajout du contenu de la boîte modale à l'élément modal
-        modal.appendChild(modalContent);
+        this.system.canvas.addEventListener("click", () => this.openModal());
 
-        // Ajout de la boîte modale au document
-        document.body.appendChild(modal);
-
-        // Ajout du contrôle pour ouvrir la boîte modale
-        this.addModalOpenListener(modal);
-
-        // Ajout du contrôle pour soumettre le formulaire
-        this.addFormSubmitListener(form, input);
+        this.form.addEventListener("submit", (event) => this.sendValues(event));
     }
 
-    addModalOpenListener(modal) {
-        this.canvas.addEventListener('click', () => {
-            modal.style.display = 'flex';
-        });
+    createField(text) {
+        const label = document.createElement("label");
+        label.textContent = text + " ";
+        label.style.display = "block";
+        label.style.marginBottom = "10px";
+
+        const input = document.createElement("input");
+        input.type = "number";
+
+        input.step = "any"; 
+        input.required = true; 
+
+        label.appendChild(input);
+        this.form.appendChild(label);
+        return input;
     }
 
-    addFormSubmitListener(form, input) {
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
-            const color = input.value;
+    openModal() {
 
-            // Vérification de la couleur valide
-            if (this.validateColor(color)) {
-                this.ctx.fillStyle = color;
-                // Appeler une méthode pour redessiner ou mettre à jour le canvas
-                this.draw();
-            } else {
-                // Gestion de l'erreur si la couleur n'est pas valide
-                console.error('Couleur invalide');
-            }
+        this.inputX.value = this.system.x;
+        this.inputY.value = this.system.y;
+        this.inputZoom.min = 100
+        this.inputZoom.value = this.system.zoom * 100;
 
-            modal.style.display = 'none';
-        });
+        this.modal.style.display = "flex";
     }
 
+    sendValues(event) {
 
-    draw() {
-        // Implémentez la méthode pour redessiner ou mettre à jour le canvas
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        event.preventDefault();
 
-        // Exemple : Dessiner un carré avec la nouvelle couleur
-        this.ctx.fillStyle = this.ctx.fillStyle;
-        this.ctx.fillRect(50, 50, 100, 100);
+
+        const x = Number(this.inputX.value);
+        const y = Number(this.inputY.value);
+        const zoom = Number(this.inputZoom.value) / 100;
+
+        this.system.updateZoomAndPosition(x, y, zoom);
+
+        this.modal.style.display = "none";
     }
 }
